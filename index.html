@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart City Operations | Azure Cloud Dashboard</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        cloud: {
+                            bg: '#0a0e17',
+                            panel: '#111827',
+                            border: '#1f2937',
+                            blue: '#0078d4',
+                            lightBlue: '#38bdf8',
+                            success: '#10b981',
+                            warning: '#f59e0b',
+                            danger: '#ef4444',
+                            text: '#f3f4f6',
+                            muted: '#9ca3af'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                        mono: ['"Roboto Mono"', 'monospace'],
+                    },
+                    boxShadow: {
+                        panel: '0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.3)',
+                        glow: '0 0 12px rgba(56, 189, 248, 0.15)',
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Fonts & Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Roboto+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            background-color: #0a0e17;
+            color: #f3f4f6;
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+        /* ------------------ BACKGROUND TOGGLE SYSTEM ------------------ */
+        .bg-layer {
+            position: fixed; inset: 0; z-index: -2;
+            opacity: 0; pointer-events: none;
+            transition: opacity 1.2s ease-in-out;
+        }
+        .bg-layer.active { opacity: 1; }
+        
+        /* 1. Cloud Operations Mode (Default) */
+        .mode-cloud .cloud-grid {
+            position: absolute; inset: 0;
+            background-image: radial-gradient(rgba(56, 189, 248, 0.04) 1px, transparent 1px), radial-gradient(rgba(56, 189, 248, 0.02) 1px, transparent 1px);
+            background-size: 40px 40px, 20px 20px; background-position: 0 0, 20px 20px;
+        }
+        .mode-cloud .data-mesh {
+            position: absolute; inset: 0; opacity: 0.6;
+            background: linear-gradient(90deg, rgba(0, 120, 212, 0.02) 1px, transparent 1px), linear-gradient(180deg, rgba(0, 120, 212, 0.02) 1px, transparent 1px);
+            background-size: 80px 80px;
+        }
+        .mode-cloud .ambient-cloud {
+            position: absolute; inset: 0;
+            background: radial-gradient(circle at 15% 50%, rgba(0, 120, 212, 0.05) 0%, transparent 50%), radial-gradient(circle at 85% 30%, rgba(56, 189, 248, 0.03) 0%, transparent 40%);
+        }
+        /* 2. Cyberpunk Mode */
+        .mode-cyber .cyber-aurora {
+            position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
+            background: radial-gradient(circle at 50% 50%, rgba(138, 43, 226, 0.08) 0%, transparent 40%), radial-gradient(circle at 80% 20%, rgba(0, 229, 255, 0.06) 0%, transparent 35%);
+            animation: auroraShift 30s ease-in-out infinite alternate; filter: blur(60px);
+        }
+        .mode-cyber .cyber-grid {
+            position: absolute; inset: 0; opacity: 0.5;
+            background-image: linear-gradient(rgba(0, 229, 255, 0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 229, 255, 0.04) 1px, transparent 1px);
+            background-size: 50px 50px; transform: perspective(1000px) rotateX(60deg) translateY(-100px) scale(3);
+            animation: gridFlow 15s linear infinite;
+        }
+        @keyframes auroraShift { 0% { transform: rotate(0deg) scale(1); } 100% { transform: rotate(15deg) scale(1.1) translate(5%, 5%); } }
+        @keyframes gridFlow { 0% { background-position: 0 0; } 100% { background-position: 0 50px; } }
+        /* 3. Minimal Enterprise Mode */
+        .mode-minimal .min-bg {
+            position: absolute; inset: 0;
+            background: radial-gradient(circle at top, #111827 0%, #0a0e17 80%);
+        }
+        /* 4. Data Galaxy / Space Mode */
+        .mode-space #spaceCanvas { position: absolute; inset: 0; }
+        /* 5. Smart City Mode */
+        .mode-city .city-glow {
+            position: absolute; bottom: 0; left: 0; right: 0; height: 50%;
+            background: linear-gradient(to top, rgba(16, 185, 129, 0.04), transparent);
+        }
+        .mode-city .city-lines {
+            position: absolute; inset: 0; opacity: 0.4;
+            background: repeating-linear-gradient(90deg, transparent, transparent 40px, rgba(16, 185, 129, 0.03) 40px, rgba(16, 185, 129, 0.03) 41px);
+        }
+        /* ------------------------------------------------------------- */
+        /* Clean SaaS Panels */
+        .panel {
+            background-color: rgba(17, 24, 39, 0.85);
+            backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--tw-colors-cloud-border); border-radius: 8px;
+            box-shadow: var(--tw-shadow-panel); transition: all 0.3s ease;
+            position: relative; overflow: hidden;
+        }
+        .panel:hover {
+            border-color: rgba(56, 189, 248, 0.3); box-shadow: var(--tw-shadow-glow); transform: translateY(-2px);
+        }
+        .panel-header {
+            border-bottom: 1px solid var(--tw-colors-cloud-border); padding: 12px 16px;
+            background-color: rgba(17, 24, 39, 0.95);
+        }
+        
+        .accent-top {
+            position: absolute; top: 0; left: 0; right: 0; height: 2px;
+            background: linear-gradient(90deg, #0078d4, #38bdf8); opacity: 0; transition: opacity 0.3s;
+        }
+        .panel:hover .accent-top { opacity: 1; }
+        /* Typography */
+        .metric-value { font-family: 'Roboto Mono', monospace; font-weight: 600; letter-spacing: -0.5px; }
+        .metric-label { font-size: 0.70rem; text-transform: uppercase; letter-spacing: 0.05em; color: #9ca3af; font-weight: 600; }
+        .micro-desc { font-size: 0.60rem; color: #6b7280; letter-spacing: 0; font-weight: 400; text-transform: none; margin-top: 2px; }
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-track { background: #0a0e17; }
+        ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+        /* Progress Bars */
+        .bar-bg { background-color: rgba(255, 255, 255, 0.05); border-radius: 2px; height: 4px; width: 100%; overflow: hidden; }
+        .bar-fill { height: 100%; border-radius: 2px; transition: width 0.5s ease-out; }
+        .bar-success { background-color: #10b981; }
+        .bar-warning { background-color: #f59e0b; }
+        .bar-azure { background-color: #38bdf8; }
+        /* Animated Pulse Dots */
+        .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+        .dot.healthy { background-color: #10b981; box-shadow: 0 0 8px rgba(16, 185, 129, 0.6); animation: pulseGreen 2s infinite; }
+        .dot.warning { background-color: #f59e0b; box-shadow: 0 0 8px rgba(245, 158, 11, 0.6); }
+        .dot.danger { background-color: #ef4444; box-shadow: 0 0 8px rgba(239, 68, 68, 0.6); animation: pulseRed 1s infinite; }
+        @keyframes pulseGreen { 0% { opacity: 1; transform: scale(1); } 50% { opacity: 0.6; transform: scale(0.8); } 100% { opacity: 1; transform: scale(1); } }
+        @keyframes pulseRed { 0%, 100% { opacity: 1; box-shadow: 0 0 12px rgba(239, 68, 68, 0.9); } 50% { opacity: 0.5; box-shadow: 0 0 2px rgba(239, 68, 68, 0.3); } }
+        /* Tags */
+        .badge { font-family: 'Inter', sans-serif; padding: 3px 8px; border-radius: 4px; font-size: 0.65rem; font-weight: 500; text-transform: uppercase; }
+        .badge.azure { background-color: rgba(0, 120, 212, 0.15); color: #60a5fa; border: 1px solid rgba(0, 120, 212, 0.3); }
+        .sparkline { width: 100%; height: 30px; }
+        #infraCanvas { width: 100%; height: 100%; }
+    </style>
+</head>
+<body class="text-sm">
+    <!-- FLOATING THEME TOGGLE UI -->
+    <div class="fixed bottom-6 right-6 z-50 group">
+        <div class="absolute bottom-full right-0 mb-4 bg-[#0d131f]/95 backdrop-blur-xl border border-cloud-border rounded-xl p-3 shadow-[0_0_20px_rgba(0,0,0,0.5)] flex flex-col gap-1.5 w-60 opacity-0 translate-y-4 pointer-events-none group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto transition-all duration-300">
+            <h4 class="text-[10px] text-cloud-muted font-bold uppercase tracking-widest mb-1 border-b border-white/10 pb-2 ml-1">Environment Display Mode</h4>
+            <!-- Toggle Buttons -->
+            <button class="theme-btn active flex items-center gap-3 w-full p-2.5 text-xs rounded-lg hover:bg-white/5 transition-colors text-left text-gray-300" data-theme="cloud">
+                <i class="fas fa-cloud text-cloud-blue w-4 text-center"></i> Cloud Operations
+            </button>
+            <button class="theme-btn flex items-center gap-3 w-full p-2.5 text-xs rounded-lg hover:bg-white/5 transition-colors text-left text-gray-300" data-theme="cyber">
+                <i class="fas fa-city text-purple-400 w-4 text-center"></i> Cyberpunk Edge
+            </button>
+            <button class="theme-btn flex items-center gap-3 w-full p-2.5 text-xs rounded-lg hover:bg-white/5 transition-colors text-left text-gray-300" data-theme="minimal">
+                <i class="fas fa-desktop text-gray-400 w-4 text-center"></i> Minimal Enterprise
+            </button>
+            <button class="theme-btn flex items-center gap-3 w-full p-2.5 text-xs rounded-lg hover:bg-white/5 transition-colors text-left text-gray-300" data-theme="space">
+                <i class="fas fa-meteor text-yellow-400 w-4 text-center"></i> Data Galaxy Space
+            </button>
+            <button class="theme-btn flex items-center gap-3 w-full p-2.5 text-xs rounded-lg hover:bg-white/5 transition-colors text-left text-gray-300" data-theme="city">
+                <i class="fas fa-network-wired text-cloud-success w-4 text-center"></i> Smart City Grid
+            </button>
+        </div>
+        <div class="w-12 h-12 rounded-full bg-cloud-blue/10 border border-cloud-blue text-cloud-blue flex items-center justify-center cursor-pointer shadow-[0_0_15px_rgba(0,120,212,0.3)] hover:bg-cloud-blue hover:text-white transition-all backdrop-blur-md">
+            <i class="fas fa-palette text-lg"></i>
+        </div>
+    </div>
+    <!-- Multi-Layer Background System -->
+    <div id="bg-manager" class="fixed inset-0 -z-50 pointer-events-none transition-opacity duration-1000">
+        <div id="layer-cloud" class="bg-layer mode-cloud active"><div class="cloud-grid"></div><div class="data-mesh"></div><div class="ambient-cloud"></div></div>
+        <div id="layer-cyber" class="bg-layer mode-cyber"><div class="cyber-aurora"></div><div class="cyber-grid"></div></div>
+        <div id="layer-minimal" class="bg-layer mode-minimal"><div class="min-bg"></div></div>
+        <div id="layer-space" class="bg-layer mode-space"><canvas id="spaceCanvas"></canvas></div>
+        <div id="layer-city" class="bg-layer mode-city"><div class="city-lines"></div><div class="city-glow"></div></div>
+    </div>
+    <!-- Navigation -->
+    <nav class="fixed top-0 w-full z-40 bg-[#0a0e17ee] border-b border-cloud-border backdrop-blur-md px-6 py-3 flex justify-between items-center shadow-md">
+        <div class="flex items-center gap-6">
+            <div class="flex items-center gap-3 text-cloud-text">
+                <i class="fab fa-microsoft text-2xl text-cloud-blue"></i>
+                <div class="leading-tight">
+                    <h1 class="text-base font-semibold tracking-tight">Smart City Cloud Dashboard</h1>
+                    <p class="text-[0.65rem] text-cloud-muted uppercase tracking-widest mt-0.5">Live Operations Center</p>
+                </div>
+            </div>
+            <div class="hidden md:flex gap-1 ml-6 text-xs font-medium text-cloud-muted">
+                <a href="#" class="px-3 py-1.5 rounded-md hover:bg-white/5 hover:text-white transition-colors bg-white/5 text-white">Overview</a>
+                <a href="#servers" class="px-3 py-1.5 rounded-md hover:bg-white/5 hover:text-white transition-colors">Servers</a>
+                <a href="#network" class="px-3 py-1.5 rounded-md hover:bg-white/5 hover:text-white transition-colors">Network Map</a>
+                <a href="#logs" class="px-3 py-1.5 rounded-md hover:bg-white/5 hover:text-white transition-colors">System Logs</a>
+            </div>
+        </div>
+        <div class="flex items-center gap-5">
+            <div class="flex items-center gap-3 px-3 py-1.5 bg-[#111827] border border-cloud-border rounded-md shadow-inner">
+                <div class="dot healthy" id="globalDot"></div>
+                <span class="text-[0.7rem] font-mono text-cloud-text tracking-wider" id="envStatusTxt">System Live: All Regions Optimal</span>
+            </div>
+            <div class="text-right border-l border-white/10 pl-5">
+                <span id="liveClock" class="metric-value text-cloud-lightBlue text-sm">00:00:00 UTC</span>
+            </div>
+        </div>
+    </nav>
+    <!-- Global Operations Dashboard Wrapper -->
+    <div class="pt-24 px-4 md:px-8 max-w-[1800px] mx-auto pb-12 space-y-8 min-h-screen">
+        <!-- Header -->
+        <header class="flex flex-col md:flex-row justify-between items-end gap-4 pb-4 border-b border-cloud-border/50">
+            <div>
+                <h2 class="text-3xl font-bold tracking-tight text-white flex items-center gap-3">
+                    City Operations Center <span class="badge azure ml-2">LIVE DATA</span>
+                </h2>
+                <p class="text-cloud-muted text-sm mt-2 font-medium">Real-time monitoring and analytics for smart city infrastructure.</p>
+            </div>
+            <div class="flex gap-6">
+                <div class="text-right p-3 bg-black/20 rounded-lg border border-white/5">
+                    <p class="metric-label mb-1">Live User Requests</p>
+                    <p class="metric-value text-2xl text-white" id="globalReqTxt">14,239</p>
+                    <p class="micro-desc">Requests processed per second</p>
+                </div>
+                <div class="text-right p-3 bg-black/20 rounded-lg border border-white/5">
+                    <p class="metric-label mb-1">System Error Rate</p>
+                    <p class="metric-value text-2xl text-cloud-success" id="globalErrTxt">0.02%</p>
+                    <p class="micro-desc">Monitored issue percentage</p>
+                </div>
+            </div>
+        </header>
+        <!-- KPI Cards -->
+        <section class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4" id="telemetryCards"></section>
+        <!-- Servers / Virtual Machines -->
+        <section id="servers" class="space-y-4">
+            <h3 class="text-sm font-semibold text-white tracking-wide flex items-center gap-2">
+                <i class="fas fa-server text-cloud-blue"></i> ACTIVE SERVERS & VIRTUAL MACHINES
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4" id="vmGrid"></div>
+        </section>
+        <!-- Network & Diagnostics -->
+        <section id="network" class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+            
+            <!-- Network Map -->
+            <div class="panel xl:col-span-2 flex flex-col h-[500px]">
+                <div class="accent-top"></div>
+                <div class="panel-header flex justify-between items-center">
+                    <h4 class="text-xs font-semibold text-white uppercase tracking-wider"><i class="fas fa-project-diagram mr-2 text-cloud-muted"></i> Live Network Map</h4>
+                    <span class="badge">SECURE CONNECTION</span>
+                </div>
+                <div class="flex-1 relative bg-[#0d131f] overflow-hidden">
+                    <canvas id="infraCanvas" class="absolute w-full h-full"></canvas>
+                    <div class="absolute bottom-4 left-4 bg-[#111827]/90 p-3 rounded-lg border border-white/10 backdrop-blur-md text-[10px] text-gray-300 space-y-2 z-10 w-48">
+                        <p class="font-semibold text-white border-b border-white/10 pb-1 mb-2">Network Nodes</p>
+                        <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 bg-gray-400 rounded-full shadow-[0_0_5px_#9ca3af]"></span> Internet Traffic</div>
+                        <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 bg-cloud-blue rounded-full shadow-[0_0_5px_#0078d4]"></span> Cloud Gateways</div>
+                        <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 bg-cloud-success rounded-full shadow-[0_0_5px_#10b981]"></span> Application Servers</div>
+                        <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 bg-purple-500 rounded-full shadow-[0_0_5px_#8b5cf6]"></span> Databases & Storage</div>
+                    </div>
+                </div>
+            </div>
+            <!-- Performance Charts -->
+            <div class="panel flex flex-col h-[500px]">
+                <div class="accent-top"></div>
+                <div class="panel-header">
+                    <h4 class="text-xs font-semibold text-white uppercase tracking-wider"><i class="fas fa-chart-line mr-2 text-cloud-muted"></i> Live Performance Charts</h4>
+                </div>
+                <div class="flex-1 p-5 flex flex-col gap-6">
+                    <!-- Network Traffic -->
+                    <div class="h-[180px] flex flex-col">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <span class="text-xs font-semibold text-white">Live Network Traffic</span>
+                                <p class="micro-desc">Data flowing into the smart city servers</p>
+                            </div>
+                            <span class="text-[10px] text-cloud-lightBlue font-mono font-bold bg-cloud-blue/10 px-2 py-0.5 rounded">Mbps</span>
+                        </div>
+                        <div class="flex-1 w-full relative"><canvas id="netChart"></canvas></div>
+                    </div>
+                    <div class="h-px bg-white/5"></div>
+                    <!-- Combined CPU -->
+                    <div class="flex-1 flex flex-col justify-center pb-4">
+                        <div class="flex justify-between items-start mb-4">
+                            <div>
+                                <span class="text-xs font-semibold text-white">Overall System Processing</span>
+                                <p class="micro-desc">Combined server CPU usage across the city</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-6">
+                            <div class="relative w-24 h-24">
+                                <canvas id="cpuChart"></canvas>
+                                <div class="absolute inset-0 flex flex-col items-center justify-center pt-1">
+                                    <span class="metric-value text-2xl text-white" id="cpuValTxt">0%</span>
+                                </div>
+                            </div>
+                            <div class="flex-1 space-y-4">
+                                <div>
+                                    <div class="flex justify-between text-[10px] mb-1"><span class="font-bold text-gray-300">Total Memory Usage</span><span class="metric-value">124GB / 256GB</span></div>
+                                    <div class="bar-bg"><div class="bar-fill bar-azure" style="width: 48%"></div></div>
+                                </div>
+                                <div>
+                                    <div class="flex justify-between text-[10px] mb-1"><span class="font-bold text-gray-300">Database Speed</span><span class="metric-value">Fast</span></div>
+                                    <div class="bar-bg"><div class="bar-fill bar-success" style="width: 30%"></div></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <!-- Bottom Row: Security & Logs -->
+        <section id="logs" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <!-- Security Status -->
+            <div class="panel flex flex-col h-[350px]">
+                <div class="accent-top"></div>
+                <div class="panel-header flex justify-between items-center">
+                    <h4 class="text-xs font-semibold text-white uppercase tracking-wider"><i class="fas fa-shield-alt mr-2 text-cloud-muted"></i> Active Security</h4>
+                    <span class="badge azure">PROTECTION ON</span>
+                </div>
+                <div class="flex-1 p-5 flex flex-col pt-3">
+                    <div class="space-y-4">
+                        <div class="flex items-center gap-4 bg-[#1f2937]/40 p-4 rounded-lg border border-white/5 hover:border-cloud-blue/50 transition-colors">
+                            <i class="fas fa-lock text-2xl text-cloud-blue"></i>
+                            <div class="flex-1">
+                                <p class="text-sm font-semibold text-white">Network Firewall</p>
+                                <p class="text-[10px] text-gray-400 mt-1">Blocking unauthorized access attempts</p>
+                            </div>
+                            <i class="fas fa-check-circle text-cloud-success text-xl"></i>
+                        </div>
+                        <div class="flex items-center gap-4 bg-[#1f2937]/40 p-4 rounded-lg border border-white/5 hover:border-purple-400/50 transition-colors">
+                            <i class="fas fa-user-shield text-2xl text-purple-400"></i>
+                            <div class="flex-1">
+                                <p class="text-sm font-semibold text-white">Secure Logins</p>
+                                <p class="text-[10px] text-gray-400 mt-1">Multi-factor authentication active</p>
+                            </div>
+                            <i class="fas fa-check-circle text-cloud-success text-xl"></i>
+                        </div>
+                        
+                        <div class="mt-4 p-5 border border-white/10 bg-[#0d131f] rounded-xl relative overflow-hidden">
+                            <div class="absolute right-0 top-0 w-24 h-24 bg-cloud-success/10 blur-[20px] rounded-full"></div>
+                            <p class="font-bold text-[10px] uppercase text-gray-400 mb-2 tracking-widest">Intrusion Monitor</p>
+                            <div class="flex items-center gap-3">
+                                <div class="dot healthy" id="threatDot"></div>
+                                <span class="text-white font-medium text-lg" id="threatStatusTxt">0 Security Threats</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- System Logs -->
+            <div class="panel lg:col-span-2 flex flex-col h-[350px]">
+                <div class="accent-top"></div>
+                <div class="panel-header flex justify-between items-center bg-[#0d1117]">
+                    <h4 class="text-xs font-semibold text-white uppercase tracking-wider"><i class="fas fa-stream mr-2 text-cloud-muted"></i> Live System Logs</h4>
+                    <div class="flex items-center gap-3">
+                        <span class="text-[10px] text-cloud-muted font-mono bg-white/5 px-2 py-1 rounded">Filtered by: System Events</span>
+                    </div>
+                </div>
+                <div class="flex-1 bg-[#0d1117] overflow-hidden p-2">
+                    <div id="terminalLogs" class="h-full overflow-y-auto px-2 pb-2">
+                        <table class="w-full text-left border-collapse table-auto text-xs font-mono text-gray-300" id="logTable">
+                            <thead>
+                                <tr class="border-b border-white/10 sticky top-0 bg-[#0d1117] text-gray-500 z-10">
+                                    <th class="py-2 px-3 font-normal w-[120px]">Time</th>
+                                    <th class="py-2 px-3 font-normal w-[90px]">Status</th>
+                                    <th class="py-2 px-3 font-normal w-[150px]">Hardware / App</th>
+                                    <th class="py-2 px-3 font-normal">Activity Detail</th>
+                                </tr>
+                            </thead>
+                            <tbody id="logTbody" class="align-top"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+    <!-- Application Logic -->
+    <script>
+        /* --- BACKGROUND TOGGLE LOGIC --- */
+        const themes = ['cloud', 'cyber', 'minimal', 'space', 'city'];
+        // Persistent theme via local storage (default to cloud)
+        let currentTheme = localStorage.getItem('dashTheme') || 'cloud';
+        function switchTheme(theme) {
+            themes.forEach(t => {
+                const layer = document.getElementById(`layer-${t}`);
+                if(layer) {
+                    if(t === theme) {
+                        layer.classList.add('active');
+                        layer.style.opacity = '1';
+                    } else {
+                        layer.classList.remove('active');
+                        layer.style.opacity = '0';
+                    }
+                }
+            });
+            // Update UI Sidebar Buttons
+            document.querySelectorAll('.theme-btn').forEach(btn => {
+                if(btn.dataset.theme === theme) {
+                    btn.classList.add('bg-white/10', 'border-l-2', 'border-cloud-lightBlue', 'text-white');
+                    btn.classList.remove('text-gray-400');
+                } else {
+                    btn.classList.remove('bg-white/10', 'border-l-2', 'border-cloud-lightBlue', 'text-white');
+                    btn.classList.add('text-gray-400');
+                }
+            });
+            if(theme === 'space' && !window.spaceBgInitialized) {
+                initSpaceCanvasBg();
+                window.spaceBgInitialized = true;
+            }
+            localStorage.setItem('dashTheme', theme);
+            currentTheme = theme;
+        }
+        document.querySelectorAll('.theme-btn').forEach(btn => {
+            btn.addEventListener('click', () => switchTheme(btn.dataset.theme));
+        });
+        // Space Particle Background Canvas Logic
+        function initSpaceCanvasBg() {
+            const canvas = document.getElementById("spaceCanvas");
+            const ctx = canvas.getContext("2d");
+            let stars = [];
+            
+            function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+            window.addEventListener('resize', resize);
+            resize();
+            for(let i=0; i<350; i++) {
+                stars.push({ x: Math.random()*canvas.width, y: Math.random()*canvas.height, r: Math.random()*1.5,
+                             speed: Math.random()*0.15 + 0.05, opacity: Math.random() });
+            }
+            function draw() {
+                ctx.clearRect(0,0, canvas.width, canvas.height);
+                ctx.fillStyle = '#050a14'; ctx.fillRect(0,0, canvas.width, canvas.height);
+                
+                stars.forEach(s => {
+                    ctx.fillStyle = `rgba(255, 255, 255, ${s.opacity})`;
+                    ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2); ctx.fill();
+                    s.y -= s.speed;
+                    s.opacity += (Math.random()-0.5)*0.03;
+                    if(s.opacity<0.1) s.opacity=0.1; if(s.opacity>1) s.opacity=1;
+                    if(s.y < 0) s.y = canvas.height;
+                });
+                requestAnimationFrame(draw);
+            }
+            draw();
+        }
+        /* -------------------------------- */
+        // Humanized Data
+        const kpiData = [
+            { id: "kpi-traffic",  label: "Live Network Traffic",  desc: "Data entering system", val: "840", unit: "mbps",  trend: "stable" },
+            { id: "kpi-nodes",    label: "Active Services",       desc: "Running cloud apps",   val: "142", unit: "",       trend: "stable" },
+            { id: "kpi-cpu",      label: "Server CPU Usage",      desc: "Speed capability used",val: "45",  unit: "%",      trend: "stable" },
+            { id: "kpi-ram",      label: "Memory Usage",          desc: "System RAM loaded",    val: "62",  unit: "%",      trend: "stable" },
+            { id: "kpi-lat",      label: "Network Response Time", desc: "Average delay",        val: "18",  unit: "ms",     trend: "stable" },
+            { id: "kpi-db",       label: "Database Activity",     desc: "Information updates",  val: "12k", unit: "/sec",   trend: "stable" },
+            { id: "kpi-blob",     label: "Cloud Storage",         desc: "Secure telemetry data",val: "3.2", unit: "TB",     trend: "stable" },
+            { id: "kpi-err",      label: "System Error Rate",     desc: "Failing processes",    val: "0.01",unit: "%",      trend: "stable", alert: true }
+        ];
+        const vmsData = [
+            { id: "IoT Gateway Server", type: "Data Collection Node", icon: "fa-satellite-dish", color: "text-cloud-lightBlue", cpu: [40,43,38,45,55,50,42,48,60,65,58,45], mem: 60, status: 'healthy' },
+            { id: "Application Server", type: "Main Processing Unit", icon: "fa-cubes",          color: "text-purple-400", cpu: [70,75,80,85,90,88,85,92,88,85,82,78], mem: 85, status: 'warning' },
+            { id: "Database Server",    type: "Information Storage",  icon: "fa-database",       color: "text-cloud-success", cpu: [10,12,11,15,14,12,10,11,10,15,12,13], mem: 45, status: 'healthy' },
+            { id: "Security Gateway",   type: "Network Sentinel",     icon: "fa-shield-alt",     color: "text-cloud-warning", cpu: [20,25,23,28,30,25,22,24,25,20,18,22], mem: 35, status: 'healthy' }
+        ];
+        let lineData = Array.from({length: 20}, () => Math.floor(Math.random() * 50 + 20));
+        let netChart, cpuChart;
+        let vmsCharts = [];
+        function renderRCards() {
+            const container = document.getElementById('telemetryCards');
+            container.innerHTML = kpiData.map(k => `
+                <div class="panel p-3 flex flex-col justify-between h-[90px] border border-white/5 hover:border-cloud-blue/50 transition-all">
+                    <div>
+                        <p class="font-bold text-[11px] text-white tracking-wide truncate" title="${k.label}">${k.label}</p>
+                        <p class="micro-desc truncate" title="${k.desc}">${k.desc}</p>
+                    </div>
+                    <div class="flex items-baseline gap-1 mt-auto shrink-0">
+                        <span class="metric-value text-2xl text-white" id="${k.id}">${k.val}</span>
+                        <span class="text-xs font-bold text-cloud-lightBlue">${k.unit}</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+        function renderVMs() {
+            const container = document.getElementById('vmGrid');
+            container.innerHTML = vmsData.map((v, i) => `
+                <div class="panel p-5 flex flex-col hover:border-cloud-lightBlue/40 transition-colors bg-[#111827]/90">
+                    <div class="flex justify-between items-start mb-3">
+                        <div class="truncate pr-2">
+                            <h4 class="text-base font-bold text-white tracking-tight flex items-center gap-2">
+                                <i class="fas ${v.icon} ${v.color}"></i> ${v.id}
+                            </h4>
+                            <p class="text-[11px] text-gray-400 mt-1">${v.type}</p>
+                        </div>
+                        <div class="dot ${v.status}" id="vmdot-${i}"></div>
+                    </div>
+                    
+                    <div class="flex-1 overflow-hidden mt-2 relative border border-white/5 rounded-md p-1 bg-black/20 h-[50px]">
+                        <p class="text-[9px] text-gray-500 uppercase mb-1 absolute top-1 left-2 z-10 font-bold bg-black/60 px-1 rounded">Processor History</p>
+                        <canvas id="vm-spark-${i}" class="sparkline w-full h-[40px] mt-1"></canvas>
+                    </div>
+                    <div class="mt-4 flex gap-5">
+                        <div class="flex-1">
+                            <div class="flex justify-between text-[11px] mb-1 font-semibold text-gray-300">
+                                <span>Processor Run</span>
+                                <span class="metric-value" id="vmcpu-${i}">${v.cpu[v.cpu.length-1]}%</span>
+                            </div>
+                            <div class="bar-bg"><div id="vmcpubar-${i}" class="bar-fill ${v.status === 'warning' ? 'bar-warning' : 'bar-azure'}" style="width:${v.cpu[v.cpu.length-1]}%"></div></div>
+                        </div>
+                        <div class="flex-1">
+                            <div class="flex justify-between text-[11px] mb-1 font-semibold text-gray-300">
+                                <span>Memory Limit</span>
+                                <span class="metric-value" id="vmmem-${i}">${v.mem}%</span>
+                            </div>
+                            <div class="bar-bg"><div class="bar-fill bg-purple-500" style="width:${v.mem}%;"></div></div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+            vmsData.forEach((v, i) => {
+                const ctx = document.getElementById(`vm-spark-${i}`).getContext('2d');
+                const chart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: Array.from({length: 12}, (_, j) => j),
+                        datasets: [{
+                            data: v.cpu,
+                            borderColor: v.status === 'warning' ? '#f59e0b' : '#38bdf8', borderWidth: 2, pointRadius: 0,
+                            fill: true, backgroundColor: v.status === 'warning' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(56, 189, 248, 0.1)', tension: 0.3
+                        }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: false } },
+                               scales: { x: { display: false }, y: { display: false, min: 0, max: 100 } }, animation: false }
+                });
+                vmsCharts.push(chart);
+            });
+        }
+        function initCharts() {
+            Chart.defaults.color = '#9ca3af'; Chart.defaults.font.family = '"Inter", sans-serif'; Chart.defaults.font.size = 11;
+            const ctxNet = document.getElementById('netChart').getContext('2d');
+            let gradBg = ctxNet.createLinearGradient(0,0,0,180);
+            gradBg.addColorStop(0, 'rgba(56, 189, 248, 0.3)'); gradBg.addColorStop(1, 'rgba(56, 189, 248, 0.0)');
+            netChart = new Chart(ctxNet, {
+                type: 'line',
+                data: {
+                    labels: Array.from({length: 20}, (_, i) => `-${(20-i)*5}s`),
+                    datasets: [{
+                        label: 'Traffic Flow', data: lineData, borderColor: '#38bdf8', backgroundColor: gradBg,
+                        borderWidth: 2, pointRadius: 2, pointHoverRadius: 5, fill: true, tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display:false }, tooltip: { backgroundColor: 'rgba(17,24,39,0.9)', titleColor: '#fff', padding: 10 } },
+                    scales: {
+                        y: { grid: { color: 'rgba(255,255,255,0.05)', drawBorder: false }, min: 0, max: 150 },
+                        x: { grid: { display: false, drawBorder: false }, ticks: { maxTicksLimit: 6 } }
+                    },
+                    animation: { duration: 0 } 
+                }
+            });
+            const ctxCpu = document.getElementById('cpuChart').getContext('2d');
+            cpuChart = new Chart(ctxCpu, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Operating', 'Available'],
+                    datasets: [{ data: [42, 58], backgroundColor: ['#38bdf8', '#1f2937'], borderWidth: 0 }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, cutout: '82%', plugins: { tooltip: { enabled: false } }, animation: false }
+            });
+            document.getElementById('cpuValTxt').innerText = '42%';
+        }
+        // Animated Central Network Map
+        let packets = []; let rFrame = 0;
+        function initTopologyCanvas() {
+            const canvas = document.getElementById("infraCanvas");
+            const ctx = canvas.getContext("2d");
+            function resize() { canvas.width = canvas.parentElement.clientWidth; canvas.height = canvas.parentElement.clientHeight; }
+            window.addEventListener('resize', resize); resize();
+            // Humanized Nodes
+            const nodesDef = [
+                { id: "www", x: 0.1, y: 0.5, l: "Citizen Apps", type: "ext" },
+                { id: "fw",  x: 0.25, y: 0.5, l: "Security Check", type: "sec" },
+                { id: "gw",  x: 0.4, y: 0.5, l: "Data Distributor", type: "lb" },
+                { id: "p1",  x: 0.6, y: 0.2, l: "Smart Traffic Logic", type: "svc" },
+                { id: "p2",  x: 0.6, y: 0.5, l: "Power Grid Monitor", type: "svc" },
+                { id: "p3",  x: 0.6, y: 0.8, l: "Weather Systems", type: "svc" },
+                { id: "db1", x: 0.85, y: 0.35, l: "City Database", type: "db" },
+                { id: "kfk", x: 0.85, y: 0.65, l: "Live Event Stream", type: "db" },
+                { id: "sa",  x: 0.9, y: 0.9, l: "Backup Cloud", type: "db" }
+            ];
+            const edgesDef = [ { s: "www", t: "fw", load: 0.5 }, { s: "fw",  t: "gw", load: 0.6 }, { s: "gw",  t: "p1", load: 0.3 },
+                               { s: "gw",  t: "p2", load: 0.8 }, { s: "gw",  t: "p3", load: 0.4 }, { s: "p1",  t: "db1", load: 0.2 },
+                               { s: "p2",  t: "db1", load: 0.4 }, { s: "p2",  t: "kfk", load: 0.9 }, { s: "p3",  t: "kfk", load: 0.3 },
+                               { s: "kfk", t: "sa", load: 0.5 } ];
+            const colorMap = { ext: '#9ca3af', sec: '#f59e0b', lb: '#0078d4', svc: '#10b981', db: '#8b5cf6' };
+            function drawLayout() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height); const w = canvas.width, h = canvas.height;
+                const nodes = {}; nodesDef.forEach(n => { nodes[n.id] = { x: n.x * w, y: n.y * h, c: colorMap[n.type], l: n.l }; });
+                // Subnet visuals humanized
+                ctx.fillStyle = 'rgba(255,255,255,0.02)'; ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.setLineDash([5, 5]);
+                ctx.fillRect(w*0.5, h*0.1, w*0.2, h*0.8); ctx.strokeRect(w*0.5, h*0.1, w*0.2, h*0.8);
+                ctx.fillRect(w*0.75, h*0.2, w*0.2, h*0.75); ctx.strokeRect(w*0.75, h*0.2, w*0.2, h*0.75);
+                ctx.fillStyle = '#6b7280'; ctx.font = 'bold 11px "Inter"'; ctx.textAlign = 'center';
+                ctx.fillText("Processing Zone", w*0.6, h*0.1 - 10); ctx.fillText("Storage Zone", w*0.85, h*0.2 - 10); ctx.setLineDash([]);
+                ctx.lineWidth = 1.5;
+                edgesDef.forEach(edge => {
+                    const start = nodes[edge.s], end = nodes[edge.t];
+                    ctx.beginPath(); ctx.moveTo(start.x, start.y);
+                    ctx.bezierCurveTo(start.x + (end.x-start.x)/2, start.y, start.x + (end.x-start.x)/2, end.y, end.x, end.y);
+                    let lineCol = "rgba(56, 189, 248, 0.15)"; if(edge.load > 0.7) lineCol = "rgba(245, 158, 11, 0.25)";
+                    ctx.strokeStyle = lineCol; ctx.stroke();
+                    if(Math.random() < edge.load * 0.08) {
+                        packets.push({ sx: start.x, sy: start.y, ex: end.x, ey: end.y, t: 0, speed: Math.random() * 0.01 + 0.005, c: edge.load > 0.7 ? '#f59e0b' : '#38bdf8' });
+                    }
+                });
+                for(let i=packets.length-1; i>=0; i--) {
+                    let p = packets[i]; p.t += p.speed;
+                    if(p.t >= 1) { packets.splice(i, 1); continue; }
+                    const cx1 = p.sx + (p.ex-p.sx)/2, cy1 = p.sy; const cx2 = p.sx + (p.ex-p.sx)/2, cy2 = p.ey;
+                    const mt = 1-p.t;
+                    const px = mt*mt*mt*p.sx + 3*mt*mt*p.t*cx1 + 3*mt*p.t*p.t*cx2 + p.t*p.t*p.t*p.ex;
+                    const py = mt*mt*mt*p.sy + 3*mt*mt*p.t*cy1 + 3*mt*p.t*p.t*cy2 + p.t*p.t*p.t*p.ey;
+                    ctx.fillStyle = p.c; ctx.shadowBlur = 8; ctx.shadowColor = p.c;
+                    ctx.beginPath(); ctx.arc(px, py, 2.5, 0, Math.PI*2); ctx.fill(); ctx.shadowBlur = 0;
+                }
+                Object.values(nodes).forEach(n => {
+                    ctx.fillStyle = '#111827'; ctx.beginPath(); ctx.arc(n.x, n.y, 9, 0, Math.PI*2); ctx.fill();
+                    ctx.strokeStyle = n.c; ctx.lineWidth = 2.5; ctx.stroke();
+                    ctx.fillStyle = '#e5e7eb'; ctx.font = '11px "Inter"'; ctx.textAlign = 'center'; ctx.fillText(n.l, n.x, n.y + 22);
+                });
+                rFrame++; requestAnimationFrame(drawLayout);
+            }
+            drawLayout();
+        }
+        const logServices = ["Smart Traffic AI", "User Login Portal", "IoT Weather Sensor", "System Updater", "Network Firewall"];
+        const logMessages = [
+            "Data successfully synchronized from traffic cameras", "Automatic scaling activated due to high citizen usage",
+            "Weather sensor alert cleared: returning to normal", "System health check validated successfully", "Daily automated backup sequence completed"
+        ];
+        function simulateLogEntry() {
+            const tbody = document.getElementById('logTbody');
+            const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
+            
+            let level = "OK"; let color = "text-gray-400";
+            const rand = Math.random();
+            if(rand > 0.85) { level = "ALERT"; color = "text-cloud-warning"; }
+            if(rand > 0.95) { level = "ERROR"; color = "text-cloud-danger"; }
+            const service = logServices[Math.floor(Math.random() * logServices.length)];
+            let msg = logMessages[Math.floor(Math.random() * logMessages.length)];
+            if(level === "ERROR") msg = "Failed to connect to regional power grid database. Retrying...";
+            const tr = document.createElement('tr');
+            tr.className = `border-b border-white/5 hover:bg-white/5 transition-colors animate-[fadeIn_0.3s] ${color}`;
+            tr.innerHTML = `
+                <td class="py-2 px-3 whitespace-nowrap opacity-70">${now}</td>
+                <td class="py-2 px-3 whitespace-nowrap font-bold">${level}</td>
+                <td class="py-2 px-3 whitespace-nowrap text-cloud-lightBlue">${service}</td>
+                <td class="py-2 px-3 truncate max-w-sm text-gray-300 font-sans text-xs">${msg}</td>
+            `;
+            tbody.prepend(tr);
+            if(tbody.children.length > 30) tbody.removeChild(tbody.lastChild);
+            setTimeout(simulateLogEntry, Math.random() * 2500 + 1000);
+        }
+        function cloudTelemetryLoop() {
+            const now = new Date(); document.getElementById("liveClock").innerText = now.toISOString().replace('T', ' ').substring(0, 19);
+            
+            if(Math.random() > 0.5) {
+                let last = lineData[lineData.length-1]; let next = Math.max(10, Math.min(140, last + (Math.random()-0.5)*30));
+                lineData.push(next); lineData.shift(); netChart.update();
+                document.getElementById('globalReqTxt').innerText = Math.floor(14000 + Math.random()*500).toLocaleString();
+            }
+            vmsData.forEach((v, i) => {
+                if(Math.random() > 0.4) {
+                    let nextV = Math.max(5, Math.min(99, v.cpu[v.cpu.length-1] + (Math.random()-0.5)*15));
+                    v.cpu.push(Math.round(nextV)); v.cpu.shift(); vmsCharts[i].update();
+                    document.getElementById(`vmcpu-${i}`).innerText = `${Math.round(nextV)}%`;
+                    document.getElementById(`vmcpubar-${i}`).style.width = `${Math.round(nextV)}%`;
+                    
+                    if(nextV > 80 && v.status !== 'warning') {
+                        v.status = 'warning'; document.getElementById(`vmdot-${i}`).className = "dot warning";
+                        document.getElementById(`vmcpubar-${i}`).className = "bar-fill bar-warning";
+                        vmsCharts[i].data.datasets[0].borderColor = '#f59e0b'; vmsCharts[i].data.datasets[0].backgroundColor = 'rgba(245, 158, 11, 0.1)';
+                    } else if (nextV <= 80 && v.status === 'warning') {
+                        v.status = 'healthy'; document.getElementById(`vmdot-${i}`).className = "dot healthy";
+                        document.getElementById(`vmcpubar-${i}`).className = "bar-fill bar-azure";
+                        vmsCharts[i].data.datasets[0].borderColor = '#38bdf8'; vmsCharts[i].data.datasets[0].backgroundColor = 'rgba(56, 189, 248, 0.1)';
+                    }
+                }
+            });
+            let avgCpu = Math.round(vmsData.reduce((acc, curr) => acc + curr.cpu[curr.cpu.length-1], 0) / vmsData.length);
+            cpuChart.data.datasets[0].data = [avgCpu, 100-avgCpu]; cpuChart.update(); document.getElementById('cpuValTxt').innerText = `${avgCpu}%`;
+            if(Math.random() > 0.97) {
+                document.getElementById('threatStatusTxt').innerText = "1 Threat Blocked";
+                document.getElementById('threatStatusTxt').className = "text-cloud-warning font-bold text-lg"; document.getElementById('threatDot').className = "dot warning";
+                setTimeout(() => {
+                    document.getElementById('threatStatusTxt').innerText = "0 Security Threats";
+                    document.getElementById('threatStatusTxt').className = "text-white font-medium text-lg"; document.getElementById('threatDot').className = "dot healthy";
+                }, 4000);
+            }
+        }
+        window.addEventListener('DOMContentLoaded', () => {
+            renderRCards(); renderVMs(); initCharts(); initTopologyCanvas(); simulateLogEntry();
+            switchTheme(currentTheme); setInterval(cloudTelemetryLoop, 1000);
+        });
+    </script>
+</body>
+</html>
